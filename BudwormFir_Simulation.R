@@ -1,37 +1,25 @@
 ## ------------------------------------------------------------------------
 ## Budworm Simulation
 ## Thinking in Systems, pg 92
-## June 2023
 ## Author: Ben Claassen
 ## ------------------------------------------------------------------------
- 
-
-# -------------------------------------------------------------------------
-## ~SUMMARY NOTES AFTER COMPLETION~
-##    - I did not capture the exactly correct dynamics, BUT got the boom and bust
-##    - Takes 3 years for the predators to catch up to the worm boom
-##    - But the worm boom was caused by a fluctuation of the predators:worms ratio, not the surplus of fir
-
-##    - This code does not include:
-##          - winter/spring dynamics worm die-off
-##          - accurate rates for most constants
-##          - affects of spraying, because underlying dynamics not accurate enough yet
-##          - other trees to harbor worm population
-##          - fractions of fir is odd
-# -------------------------------------------------------------------------
-
 
 
 # Libraries ---------------------------------------------------------------
 library(tidyverse)
 
 # Assumptions and constants -----------------------------------------------
-# Each worm can create 150 new worms <https://apps.fs.usda.gov/r6_decaid/views/western_spruce_budworm.html>
+# Each worm can create 150 new worms
+# <https://apps.fs.usda.gov/r6_decaid/views/western_spruce_budworm.html>
 rate_wormReproduction <- 150
-# Each predator (bird) lays 5 eggs <invented>
-rate_predatorReproduction <- 5
-# Each fir creates 0.2 more firs <invented>
-rate_firReproduction <- 0.2
+# Each predator (bird) lays 6 eggs <mostly invented>
+# <https://www.10000birds.com/spruce-budworms-and-the-warblers-that-eat-them.htm>
+# <https://en.wikipedia.org/wiki/Tennessee_warbler>
+rate_predatorReproduction <- 6 
+# Each fir creates 2 more firs each year <invented>
+# Firs crowd out other trees overtime, so we can model their numbers expanding
+#      even while ignoring other species
+rate_firReproduction <- 2
 
 
 # 1 fir is killed by 10,000 worms <invented>
@@ -42,7 +30,24 @@ rate_wormDeath_predators <- 1000
 
 
 
-# -------------------------------------------------------------------------
+
+# Process -----------------------------------------------------------------
+
+## Chronological steps
+# (1) Trees, worms, and predators reproduce
+# (2) Predators eat worms in the spring. If they cannot find enough worms then they starve to death
+# (3) Worms eat trees in the summer. If they cannot find enough trees then they starve to death
+# (4) Trees that have too many worms do not survive the winter
+
+## Other assumptions
+# - Worms are assumed to saturate trees before moving on
+# - If any of the three populations die off, one (1) moves in to the area at the start of the next year
+# - No bounds on the area
+# - No member of a population dies from any other cause than starvation or predation
+
+
+
+# Initialize storage matrix -----------------------------------------------
 
 
 forest <- as.data.frame(
@@ -51,54 +56,82 @@ forest <- as.data.frame(
 
 names(forest) <- c('year', 'start_worms', 'start_predators', 'start_fir', 'end_worms', 'end_predators', 'end_fir')
 
-forest[,1] <- 0:100 # set time periods
-forest[1,2] <- 0 # start simulation with 100 worms
-forest[1,3] <- 0 # start simulation with 1 predator
-forest[1,4] <- 0 # start simulation with 1 fir
+forest[,1] <- 0:100 # Set time periods
+forest[1,2] <- 0 # Set start value to 0
+forest[1,3] <- 0 # Set start value to 0
+forest[1,4] <- 0 # Set start value to 0
 
-forest[1,5] <- 100 # start simulation with 100 worms
-forest[1,6] <- 1 # start simulation with 1 predator
-forest[1,7] <- 1 # start simulation with 1 fir
+forest[1,5] <- 100 # Start simulation with 100 worms
+forest[1,6] <- 1 # Start simulation with 1 predator
+forest[1,7] <- 10 # Start simulation with 10 fir
 
 head(forest)
 
 
 
 # Fill out [forest] matrix ----------------------------------------------------
-# Set current year to work with
-# x=4
+# x=2
 for(x in 2:101) {
   previous <- forest[(x-1),]
   current <- forest[x,]
   previous
   current
   
+  # If any of the three populations has dropped to 0, then a new 1 moves into the area before reproduction
+  
+  if(current$start_worms <= 0) {
+    current$start_worms <- 1
+  }
+  if(current$start_predators <= 0) {
+    current$start_predators <- 1
+  }
+  if(current$start_fir <= 0) {
+    current$start_fir <- 1
+  }
+  
+  
   # Worms reproduce at beginning of year
-  current$start_worms <- previous$end_worms * rate_wormReproduction + previous$end_worms
+  current$start_worms <- (previous$end_worms * rate_wormReproduction) + previous$end_worms
   # Predators reproduce
-  current$start_predators <- previous$end_predators * rate_predatorReproduction + previous$end_predators
+  current$start_predators <- (previous$end_predators * rate_predatorReproduction) + previous$end_predators
   # Firs reproduce
-  current$start_fir <- previous$end_fir * rate_firReproduction + previous$end_fir
+  current$start_fir <- floor(previous$end_fir * rate_firReproduction) + previous$end_fir
   
   # Predators eat worms or starve
-  if(current$start_worms >= current$start_predators * rate_wormDeath_predators) {
-    current$end_worms <- current$start_worms - (current$start_predators * rate_wormDeath_predators)
-    if(current$end_worms < 1) {
-      current$end_worms <- 1
-    }
-    
-    current$end_predators <- current$start_predators
-  } else {
-    current$end_predators <- floor(current$start_worms / rate_wormDeath_predators)
-    if(current$end_predators < 1) {
-      current$end_predators <- 1
-    }
-    
-    current$end_worms <- current$start_worms - (current$end_predators * rate_wormDeath_predators)
-    if(current$end_worms < 1) {
-      current$end_worms <- 1
-    }
+  if(current$start_worms >= current$start_predators * rate_wormDeath_predators) { # If there are enough worms to feed all predators, then...
+    current$end_predators <- current$start_predators # ...all predators survive
+    current$end_worms <- current$start_worms - (current$start_predators * rate_wormDeath_predators)# ... and worms are reduced proportional to the number of predators
+  } else { # Else, all worms are eaten, and the remaining predators starve
+    current$end_predators <- floor(current$start_worms / rate_wormDeath_predators) # Set predators to the max whole number that can find enough worms to eat
+    current$end_worms <- 0
   }
+  
+  
+
+# -------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+
+  
+  # if(current$start_worms >= current$start_predators * rate_wormDeath_predators) {
+  #   current$end_worms <- current$start_worms - (current$start_predators * rate_wormDeath_predators)
+  #   if(current$end_worms < 1) {
+  #     current$end_worms <- 1
+  #   }
+  #   
+  #   current$end_predators <- current$start_predators
+  # } else {
+  #   current$end_predators <- floor(current$start_worms / rate_wormDeath_predators)
+  #   if(current$end_predators < 1) {
+  #     current$end_predators <- 1
+  #   }
+  #   
+  #   current$end_worms <- current$start_worms - (current$end_predators * rate_wormDeath_predators)
+  #   if(current$end_worms < 1) {
+  #     current$end_worms <- 1
+  #   }
+  # }
+  
+  
   # Worms eat fir or starve
   if(current$start_fir >= current$end_worms / rate_firDeath_worm) {
     current$end_worms <- current$end_worms
