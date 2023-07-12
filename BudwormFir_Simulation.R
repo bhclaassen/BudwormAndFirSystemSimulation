@@ -77,8 +77,8 @@ for(x in 2:101) {
   current <- forest[x,] # Set the 'current' period to be {x}
   previous <- forest[(x-1),] # Set the 'previous' period to by the (current - 1)
   
-  print(previous)
-  print(current)
+  # print(previous)
+  # print(current)
   
   
   # If any of the three populations has dropped to 0, then a new 1 moves into the area before reproduction
@@ -98,7 +98,7 @@ for(x in 2:101) {
   # Predators reproduce
   current$start_predators <- (previous$end_predators * rate_predatorReproduction) + previous$end_predators
   # Firs reproduce
-  current$start_fir <- floor(previous$end_fir * rate_firReproduction) + previous$end_fir
+  current$start_fir <- (previous$end_fir * rate_firReproduction) + previous$end_fir
   
   
   ## Predators eat worms or starve
@@ -119,7 +119,7 @@ for(x in 2:101) {
   
   ## Worms eat fir or starve
   # If there are not enough fir trees to feed all worms, then...
-  if(current$start_fir < current$end_worms / rate_firDeath_worm) {
+  if(current$start_fir <= current$end_worms / rate_firDeath_worm) {
     # ... excess worms starve to death
     # Set the number of surviving worms to the number that are sustained by all current starting fir trees
     current$end_worms <- current$start_fir * rate_firDeath_worm
@@ -128,30 +128,19 @@ for(x in 2:101) {
 
   ## Fir that are saturated die
   # If there are not enough fir trees to feed all worms, then...
-  if(current$start_fir < current$end_worms / rate_firDeath_worm) {
+  if(current$start_fir <= current$end_worms / rate_firDeath_worm) {
     current$end_fir <- 0
   } else { # Else...
     # ...all fir trees that are saturated with worms die
     current$end_fir <- current$start_fir - floor(current$end_worms / rate_firDeath_worm)
   }
-  
-  
 
-# -------------------------------------------------------------------------
-# -------------------------------------------------------------------------
-
-  # Fir die
-  # current$end_fir <- current$start_fir - floor(current$end_worms / rate_firDeath_worm)
-  # if(current$end_fir < 0) {
-  #     current$end_fir <- 1
-  #   }
-  
   
   # Assign the current row back to the storage matrix
   forest[x,] <- current
   
-  print(current)
-  print(head(forest))
+  # print(current)
+  # print(head(forest))
 }
 
 head(forest)
