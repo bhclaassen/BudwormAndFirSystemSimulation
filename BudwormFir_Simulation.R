@@ -7,6 +7,7 @@
 
 # Libraries ---------------------------------------------------------------
 library(tidyverse)
+options(scipen = 999) # Option for printing in scientific notation
 
 # Assumptions and constants -----------------------------------------------
 # Each worm can create 150 new worms
@@ -41,6 +42,7 @@ rate_wormDeath_predators <- 1000
 
 ## Other assumptions
 # - Worms are assumed to saturate trees before moving on
+# - A single fir can only host as many worms as it is ultimately killed by
 # - If any of the three populations die off, one (1) moves in to the area at the start of the next year
 # - No bounds on the area
 # - No member of a population dies from any other cause than starvation or predation
@@ -79,14 +81,14 @@ for(x in 2:101) {
   
   # If any of the three populations has dropped to 0, then a new 1 moves into the area before reproduction
   
-  if(current$start_worms <= 0) {
-    current$start_worms <- 1
+  if(previous$end_worms <= 0) {
+    previous$end_worms <- 1
   }
-  if(current$start_predators <= 0) {
-    current$start_predators <- 1
+  if(previous$end_predators <= 0) {
+    previous$end_predators <- 1
   }
-  if(current$start_fir <= 0) {
-    current$start_fir <- 1
+  if(previous$end_fir <= 0) {
+    previous$end_fir <- 1
   }
   
   
@@ -97,47 +99,43 @@ for(x in 2:101) {
   # Firs reproduce
   current$start_fir <- floor(previous$end_fir * rate_firReproduction) + previous$end_fir
   
+  
   # Predators eat worms or starve
-  if(current$start_worms >= current$start_predators * rate_wormDeath_predators) { # If there are enough worms to feed all predators, then...
-    current$end_predators <- current$start_predators # ...all predators survive
-    current$end_worms <- current$start_worms - (current$start_predators * rate_wormDeath_predators)# ... and worms are reduced proportional to the number of predators
-  } else { # Else, all worms are eaten, and the remaining predators starve
-    current$end_predators <- floor(current$start_worms / rate_wormDeath_predators) # Set predators to the max whole number that can find enough worms to eat
+  # If there are enough worms to feed all predators, then...
+  if(current$start_worms >= current$start_predators * rate_wormDeath_predators) {
+    # ...all predators survive...
+    current$end_predators <- current$start_predators
+    # ...and worms are reduced proportional to the number of predators
+    current$end_worms <- current$start_worms - (current$start_predators * rate_wormDeath_predators)
+  } else { # Else...
+    # ...all worms are eaten...
     current$end_worms <- 0
+    # ...and the remaining predators starve.
+    # Set predators to the max whole number that can find enough worms to eat
+    current$end_predators <- floor(current$start_worms / rate_wormDeath_predators)
   }
-  
-  
-
-# -------------------------------------------------------------------------
-# -------------------------------------------------------------------------
-
-  
-  # if(current$start_worms >= current$start_predators * rate_wormDeath_predators) {
-  #   current$end_worms <- current$start_worms - (current$start_predators * rate_wormDeath_predators)
-  #   if(current$end_worms < 1) {
-  #     current$end_worms <- 1
-  #   }
-  #   
-  #   current$end_predators <- current$start_predators
-  # } else {
-  #   current$end_predators <- floor(current$start_worms / rate_wormDeath_predators)
-  #   if(current$end_predators < 1) {
-  #     current$end_predators <- 1
-  #   }
-  #   
-  #   current$end_worms <- current$start_worms - (current$end_predators * rate_wormDeath_predators)
-  #   if(current$end_worms < 1) {
-  #     current$end_worms <- 1
-  #   }
-  # }
   
   
   # Worms eat fir or starve
-  if(current$start_fir >= current$end_worms / rate_firDeath_worm) {
-    current$end_worms <- current$end_worms
-  } else {
+  # If there are not enough fir to feed all worms, then...
+  if(current$start_fir < current$end_worms / rate_firDeath_worm) {
+    # ... excess worms starve to death
+    # Set the number of surviving worms to the number that are sustained by all current starting fir trees
     current$end_worms <- current$start_fir * rate_firDeath_worm
-  }
+  } # Else, all worms survive, i.e. numbers set by predation remain
+  
+  
+  
+
+# -------------------------------------------------------------------------
+# -------------------------------------------------------------------------
+
+  # Worms eat fir or starve
+  # if(current$start_fir >= current$end_worms / rate_firDeath_worm) {
+  #   current$end_worms <- current$end_worms
+  # } else {
+  #   current$end_worms <- current$start_fir * rate_firDeath_worm
+  # }
   
   # Fir die
   current$end_fir <- current$start_fir - floor(current$end_worms / rate_firDeath_worm)
