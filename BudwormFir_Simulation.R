@@ -74,13 +74,14 @@ head(forest)
 # Fill out [forest] matrix ----------------------------------------------------
 # x=2
 for(x in 2:101) {
-  previous <- forest[(x-1),]
-  current <- forest[x,]
-  previous
-  current
+  current <- forest[x,] # Set the 'current' period to be {x}
+  previous <- forest[(x-1),] # Set the 'previous' period to by the (current - 1)
+  
+  print(previous)
+  print(current)
+  
   
   # If any of the three populations has dropped to 0, then a new 1 moves into the area before reproduction
-  
   if(previous$end_worms <= 0) {
     previous$end_worms <- 1
   }
@@ -92,7 +93,7 @@ for(x in 2:101) {
   }
   
   
-  # Worms reproduce at beginning of year
+  ## Worms reproduce at beginning of year
   current$start_worms <- (previous$end_worms * rate_wormReproduction) + previous$end_worms
   # Predators reproduce
   current$start_predators <- (previous$end_predators * rate_predatorReproduction) + previous$end_predators
@@ -100,7 +101,7 @@ for(x in 2:101) {
   current$start_fir <- floor(previous$end_fir * rate_firReproduction) + previous$end_fir
   
   
-  # Predators eat worms or starve
+  ## Predators eat worms or starve
   # If there are enough worms to feed all predators, then...
   if(current$start_worms >= current$start_predators * rate_wormDeath_predators) {
     # ...all predators survive...
@@ -116,36 +117,41 @@ for(x in 2:101) {
   }
   
   
-  # Worms eat fir or starve
-  # If there are not enough fir to feed all worms, then...
+  ## Worms eat fir or starve
+  # If there are not enough fir trees to feed all worms, then...
   if(current$start_fir < current$end_worms / rate_firDeath_worm) {
     # ... excess worms starve to death
     # Set the number of surviving worms to the number that are sustained by all current starting fir trees
     current$end_worms <- current$start_fir * rate_firDeath_worm
   } # Else, all worms survive, i.e. numbers set by predation remain
   
+
+  ## Fir that are saturated die
+  # If there are not enough fir trees to feed all worms, then...
+  if(current$start_fir < current$end_worms / rate_firDeath_worm) {
+    current$end_fir <- 0
+  } else { # Else...
+    # ...all fir trees that are saturated with worms die
+    current$end_fir <- current$start_fir - floor(current$end_worms / rate_firDeath_worm)
+  }
   
   
 
 # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
-  # Worms eat fir or starve
-  # if(current$start_fir >= current$end_worms / rate_firDeath_worm) {
-  #   current$end_worms <- current$end_worms
-  # } else {
-  #   current$end_worms <- current$start_fir * rate_firDeath_worm
-  # }
-  
   # Fir die
-  current$end_fir <- current$start_fir - floor(current$end_worms / rate_firDeath_worm)
-  if(current$end_fir < 0) {
-      current$end_fir <- 1
-    }
-  ##
-  current
+  # current$end_fir <- current$start_fir - floor(current$end_worms / rate_firDeath_worm)
+  # if(current$end_fir < 0) {
+  #     current$end_fir <- 1
+  #   }
+  
+  
+  # Assign the current row back to the storage matrix
   forest[x,] <- current
-  head(forest)
+  
+  print(current)
+  print(head(forest))
 }
 
 head(forest)
