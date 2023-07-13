@@ -10,18 +10,23 @@ library(tidyverse)
 options(scipen = 999) # Option for printing in scientific notation
 
 # Assumptions and constants -----------------------------------------------
+
 # Each worm can create 150 new worms
 # <https://apps.fs.usda.gov/r6_decaid/views/western_spruce_budworm.html>
 rate_wormReproduction <- 150
+
 # Each predator (bird) lays 6 eggs <mostly invented>
 # <https://www.10000birds.com/spruce-budworms-and-the-warblers-that-eat-them.htm>
 # <https://en.wikipedia.org/wiki/Tennessee_warbler>
 rate_predatorReproduction <- 6 
+
 # Each fir creates 2 more firs each year <invented>
 # Firs crowd out other trees overtime, so we can model their numbers expanding
 #      even while ignoring other species
 rate_firReproduction <- 2
 
+# If firs die off, it takes 2 years for a new tree to reach maturity <invented>
+rate_firTimeToMaturity <- 2
 
 # 1 fir is killed by 10,000 worms <invented>
 rate_firDeath_worm <- 10000
@@ -43,9 +48,13 @@ rate_wormDeath_predators <- 1000
 ## Other assumptions
 # - Worms are assumed to saturate trees before moving on
 # - A single fir can only host as many worms as it is ultimately killed by
-# - If any of the three populations die off, one (1) moves in to the area at the start of the next year
+# - If trees or worms die off, one (1) moves in to the area at the start of the next year
+# - Predators move in if there are enough worms to feed one (1)
+# - Predators have as many young as can be supported by the budworm population, up to 
+#      their max (set in parameters)
 # - No bounds on the area
-# - No member of a population dies from any other cause than starvation or predation
+# - Budworms only live one year
+# - No fir or predator dies from any other cause than starvation or predation
 
 
 
@@ -81,25 +90,29 @@ for(x in 2:101) {
   # print(current)
   
   
-  # If any of the three populations has dropped to 0, then a new 1 moves into the area before reproduction
-  if(previous$end_worms <= 0) {
+  # If worm population has dropped to 0, then a new 1 moves into the area before reproduction
+  if(previous$end_worms == 0) {
     previous$end_worms <- 1
   }
-  if(previous$end_predators <= 0) {
+  
+  
+  ## Worms eggs hatch at beginning of year (NOTE: All previous-year budworms have died)
+  current$start_worms <- (previous$end_worms * rate_wormReproduction)
+  # Predators reproduce or arrive
+  current$start_predators <- (previous$end_predators * rate_predatorReproduction) + previous$end_predators
+  # If previous end predators is zero, and there are enough worms to support one predator,
+  #     it moves in. Else keep predators at zero. Do not reproduce at beginning of year
+  if(previous$end_predators == 0 & current$start_worms >= rate_wormDeath_predators) {
     previous$end_predators <- 1
   }
-  if(previous$end_fir <= 0) {
-    previous$end_fir <- 1
-  }
-  
-  
-  ## Worms reproduce at beginning of year
-  current$start_worms <- (previous$end_worms * rate_wormReproduction) + previous$end_worms
-  # Predators reproduce
-  current$start_predators <- (previous$end_predators * rate_predatorReproduction) + previous$end_predators
   # Firs reproduce
   current$start_fir <- (previous$end_fir * rate_firReproduction) + previous$end_fir
-  
+
+  # If fir population is zero, then add one tree if enough time has passed
+  if( all.equal( rep(0, length((x - rate_firTimeToMaturity):x) ),
+    c(forest[(x - rate_firTimeToMaturity):x,]$end_fir)) ) {
+    previous$end_fir <- 1
+  }
   
   ## Predators eat worms or starve
   # If there are enough worms to feed all predators, then...
